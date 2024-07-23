@@ -6,6 +6,9 @@ name = "pypi"
 [packages]
 fastapi = "*"
 boto3 = "*"
+pymongo = "*"
+llama-index = "*"
+python-dotenv = "*"
 
 [dev-packages]
 
