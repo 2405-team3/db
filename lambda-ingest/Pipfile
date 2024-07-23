@@ -1,0 +1,20 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+llama-index = "*"
+llama-parse = "*"
+boto3 = "*"
+pymongo = "*"
+python-dotenv = "*"
+llama-index-embeddings-openai = "*"
+llama-index-llms-openai = "*"
+llama-index-vector-stores-awsdocdb = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.10"
+python_full_version = "3.10.12"
