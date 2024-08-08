@@ -1,0 +1,11 @@
+{
+  "availability-zones:account=891377036664:region=us-east-1": [
+    "us-east-1a",
+    "us-east-1b",
+    "us-east-1c",
+    "us-east-1d",
+    "us-east-1e",
+    "us-east-1f"
+  ],
+  "ami:account=891377036664:filters.image-type.0=machine:filters.name.0=ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*:filters.state.0=available:owners.0=099720109477:region=us-east-1": "ami-03e31863b8e1f70a5"
+}
