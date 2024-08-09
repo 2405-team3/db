@@ -3,6 +3,9 @@ import { Construct } from 'constructs';
 // import * as sqs from 'aws-cdk-lib/aws-sqs';
 
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import * as iam from 'aws-cdk-lib/aws-iam';
+import * as docdb from 'aws-cdk-lib/aws-docdb';
+
 
 const INSTANCE_NUM = 4;
 
@@ -11,49 +14,69 @@ export class Ec23Stack extends cdk.Stack {
     super(scope, id, props);
 
     // Create a VPC (Virtual Private Cloud)
-    const vpc = new ec2.Vpc(this, 'CDKVpc', {
+    const vpc = new ec2.Vpc(this, `CDKVpc-${INSTANCE_NUM}`, {
       maxAzs: 2, // Default is all AZs in the region
     });
 
-    const securityGroup = new ec2.SecurityGroup(this, 'CDKSecurityGroup', {
+
+    // Create security group
+    const ec2SecurityGroup = new ec2.SecurityGroup(this, 'SecurityGroup', {
       vpc,
       allowAllOutbound: true,
     });
 
-    securityGroup.addIngressRule(
+    ec2SecurityGroup.addIngressRule(
       ec2.Peer.anyIpv4(),
       ec2.Port.tcp(22), // Allow SSH access
       'Allow SSH access from anywhere',
     );
 
-    securityGroup.addIngressRule(
+    ec2SecurityGroup.addIngressRule(
       ec2.Peer.anyIpv4(),
       ec2.Port.tcp(80), // Allow HTTP access
       'Allow HTTP access from anywhere',
     );
 
+    const docDbSecurityGroup = new ec2.SecurityGroup(this, 'DocDbSecurityGroup', {
+      vpc,
+    });
+
+    docDbSecurityGroup.addIngressRule(
+      ec2SecurityGroup, ec2.Port.tcp(27017)
+    )
+
+    // const rdsSecurityGroup = new ec2.SecurityGroup(this, 'RDSSecurityGroup', {
+    //   vpc,
+    // });
+
+
+
+
+    // EC2 instance
+
+    // Define role
+    const ec2Role = new iam.Role(this, 'EC2Role', {
+      assumedBy: new iam.ServicePrincipal('ec2.amazonaws.com'),
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonSSMManagedInstanceCore'),
+      ],
+    });
+
+    // Define an Amazon Machine Image (AMI)
     const ubuntuAmi = ec2.MachineImage.lookup({
       name: 'ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*',
       owners: ['099720109477'], // Canonical's AWS account ID
     });
 
+    // Start-up actions (application code)
     const userData = ec2.UserData.forLinux();
     userData.addCommands(
       'sudo apt update -y',
       'sudo apt upgrade -y',
       'git clone -b cdk1 https://github.com/2405-team3/db.git /home/ubuntu/db',
-      'bash /home/ubuntu/db/setup_scripts/setup_ec2.sh'
-      // 'curl https://pyenv.run | bash',
-      // 'export PYENV_ROOT="$HOME/.pyenv',
-      // '[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"',
-      // 'eval "$(pyenv init -)"',
-//       'sudo apt install build-essential libssl-dev zlib1g-dev \
-// libbz2-dev libreadline-dev libsqlite3-dev curl \
-// libncursesw5-dev xz-utils tk-dev libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev -y',
+      'bash /home/ubuntu/db/setup_scripts/setup_ec2.sh',
+      '/bin/bash -c "$(curl -fsSL https://github.com/2405-team3/db/blob/cdk1/setup_scripts/setup_ec2.sh)"'
     )
-
-    // Define an Amazon Machine Image (AMI)
-    // const ami = new ec2.AmazonLinuxImage();
 
     const keyPair = ec2.KeyPair.fromKeyPairAttributes(this, 'KeyPair', {
     keyPairName: 'aws1',
@@ -64,7 +87,9 @@ export class Ec23Stack extends cdk.Stack {
     const instance = new ec2.Instance(this, `CDKEC2-${INSTANCE_NUM}`, {
       vpc,
       instanceType: ec2.InstanceType.of(ec2.InstanceClass.T2, ec2.InstanceSize.MICRO),
-      machineImage: ubuntuAmi, securityGroup,
+      machineImage: ubuntuAmi, 
+      securityGroup: ec2SecurityGroup,
+      role: ec2Role,
       keyPair: keyPair,
       userData,
       vpcSubnets: {
@@ -76,6 +101,22 @@ export class Ec23Stack extends cdk.Stack {
     // output the instance public DNS
     new cdk.CfnOutput(this, 'InstancePublicDNS', {
       value: instance.instancePublicDnsName,
+    });
+
+
+    // docdb cluster
+    const docdbCluster = new docdb.DatabaseCluster(this, `CDKDocDBCluster-${INSTANCE_NUM}`, {
+      masterUser: { username: 'docdbadmin' },
+      instanceType: ec2.InstanceType.of(ec2.InstanceClass.R5, ec2.InstanceSize.LARGE),
+      vpc,
+      securityGroup: docDbSecurityGroup,
+      vpcSubnets: {
+        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
+      },
+    });
+
+    new cdk.CfnOutput(this, 'DocumentDBEndpoint', {
+      value: docdbCluster.clusterEndpoint.hostname,
     });
   }
 }
