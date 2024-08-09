@@ -39,3 +39,5 @@ echo ""
 echo "========= installing pipenv"
 
 pip install pipenv
+
+source ~/.profile
